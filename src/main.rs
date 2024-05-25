@@ -9,7 +9,6 @@ use tower_http::services::ServeFile;
 const LOGPATH: &str = "/home/dga/solar/log.json";
 
 const DAILY_QUERY: &str = "select date, total_watt_hours from daily_view_fast_string";
-// std::include_str!("daily_query.sql");
 
 const HOURLY_QUERY: &str = std::include_str!("hourly_query.sql");
 
