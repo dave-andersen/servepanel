@@ -1,10 +1,10 @@
-use axum::{Json, Router, error_handling::HandleError, http::{StatusCode}};
+use anyhow::{anyhow, Result};
+use axum::{error_handling::HandleError, http::StatusCode, Json, Router};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use tower_http::services::ServeFile;
-use anyhow::{anyhow, Result};
 
 const LOGPATH: &str = "/home/dga/solar/log.json";
 
@@ -44,7 +44,11 @@ pub async fn power() -> Result<Json<PowerResponse>> {
     let lastlog = read_last_line(LOGPATH)?;
     let current: RawPowerLogEntry = serde_json::from_str(&lastlog)?;
     let (day_history, hour_history) = duckdb_power()?;
-    Ok(Json(PowerResponse { current, day_history, hour_history }))
+    Ok(Json(PowerResponse {
+        current,
+        day_history,
+        hour_history,
+    }))
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -60,7 +64,9 @@ struct PowerLogEntry {
 
 fn duckdb_power() -> duckdb::Result<(Vec<PowerTimeEntry>, Vec<PowerTimeEntry>)> {
     const DB: &str = "/home/dga/solar/solarpower.duckdb";
-    let readonly_config = duckdb::Config::default().access_mode(duckdb::AccessMode::ReadOnly).unwrap();
+    let readonly_config = duckdb::Config::default()
+        .access_mode(duckdb::AccessMode::ReadOnly)
+        .unwrap();
     let conn = duckdb::Connection::open_with_flags(DB, readonly_config)?;
     let mut stmt = conn.prepare(DAILY_QUERY)?;
 
@@ -87,7 +93,6 @@ fn duckdb_power() -> duckdb::Result<(Vec<PowerTimeEntry>, Vec<PowerTimeEntry>)> 
 async fn main() {
     use tokio::net::TcpListener;
 
-
     let power_service = tower::service_fn(|_req| async {
         let b = power().await?;
         Ok::<_, anyhow::Error>(b)
@@ -95,12 +100,14 @@ async fn main() {
 
     let app = Router::new()
         .route_service("/", ServeFile::new("servepage.html"))
-        .route_service("/power", HandleError::new(power_service, handle_anyhow_error));
+        .route_service(
+            "/power",
+            HandleError::new(power_service, handle_anyhow_error),
+        );
 
     let listener = TcpListener::bind("0.0.0.0:8084").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
-
 
 async fn handle_anyhow_error(err: anyhow::Error) -> (StatusCode, String) {
     (
