@@ -1,0 +1,80 @@
+<html>
+
+<head>
+	<style>
+		body,
+		html,
+		table,
+		p {
+			font-size: 1.1em;
+		}
+
+		table.powertable {
+			font-size: 1.2em;
+		}
+
+		td {
+			padding-right: 1em;
+		}
+
+		p.current {
+			font-size: 1.6em;
+		}
+
+		span#currentpower {
+			font-size: 1.9em;
+		}
+	</style>
+	<title>Power Production</title>
+</head>
+
+<body>
+	<h1>Power Production</h1>
+	<p class="current">Current power: <span id="currentpower"></span>W</p>
+	<p>As of: <span id="currenttime"></span></p>
+	<h2>History</h2>
+	<table id="powerhistory" class="powertable">
+	</table>
+	<h2>Hourly History</h2>
+	<table id="hourhistory" class="powersmalltable">
+	</table>
+	<script>
+		const r = fetch('power');
+		r.then(response => response.json()).then(data => {
+			document.getElementById("currentpower").innerHTML = data.current.power;
+			document.getElementById("currenttime").innerHTML = data.current.time;
+			let history_table = document.getElementById("powerhistory");
+			for (const dh of data.day_history) {
+				history_table.innerHTML += `<tr><td>${dh.time}</td><td>${dh.watt_hours} Wh</td></tr>\n`;
+			}
+			let hour_history_table = document.getElementById("hourhistory");
+			// data.hour_history is an array of objects with time and watt_hours properties;
+			// we get two days of it, yesterday and partial of today's;
+			// as strings in the format YYYY-MM-DD HH
+			// Group the data by hour and show two columns of the table with the hours lined up, one for each day
+			// If the data is not available for a given hour, show a dash
+			// If the data is available, show the watt_hours
+			// The table should have a header row with the hours and a row for each hour with the data
+			hour_history_table.innerHTML += '<tr><th>Hour</th><th>Yesterday</th><th>Today</th></tr>\n';
+			let yesterday = new Date();
+			yesterday.setDate(yesterday.getDate() - 1);
+			let today = new Date();
+			let hours = [];
+			const today_str = today.getFullYear().toString() + '-' + (today.getMonth() + 1).toString().padStart(2, '0') + '-' + today.getDate().toString().padStart(2, '0');
+			const yesterday_str = yesterday.getFullYear().toString() + '-' + (yesterday.getMonth() + 1).toString().padStart(2, '0') + '-' + yesterday.getDate().toString().padStart(2, '0');
+			for (let i = 0; i < 24; i++) {
+				hours.push(`${yesterday_str} ${i.toString().padStart(2, '0')}`);
+			}
+			for (let i = 0; i <= today.getHours(); i++) {
+				hours.push(`${today_str} ${i.toString().padStart(2, '0')}`);
+			}
+			for (let i = 0; i < 24; i++) {
+				let yesterday_data = data.hour_history.find(dh => dh.time === hours[i]);
+				let today_data = data.hour_history.find(dh => dh.time === hours[i + 24]);
+				hour_history_table.innerHTML += `<tr><td>${i.toString().padStart(2, '0')}</td><td>${yesterday_data ? yesterday_data.watt_hours + ' Wh' : '-'}</td><td>${today_data ? today_data.watt_hours + ' Wh' : '-'}</td></tr>\n`;
+			}
+		});
+	</script>
+</body>
+
+</html>
