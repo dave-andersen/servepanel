@@ -67,7 +67,6 @@ fn duckdb_power() -> duckdb::Result<(Vec<PowerTimeEntry>, Vec<PowerTimeEntry>)> 
         .access_mode(duckdb::AccessMode::ReadOnly)
         .unwrap();
     let conn = duckdb::Connection::open_with_flags(DB, readonly_config)?;
-    let mut stmt = conn.prepare(DAILY_QUERY)?;
 
     let map_to_pte = |row: &duckdb::Row| -> duckdb::Result<PowerTimeEntry> {
         Ok(PowerTimeEntry {
@@ -76,14 +75,17 @@ fn duckdb_power() -> duckdb::Result<(Vec<PowerTimeEntry>, Vec<PowerTimeEntry>)> 
         })
     };
 
-    let res = stmt.query_map([], map_to_pte)?;
+    let day_history = conn
+        .prepare(DAILY_QUERY)?
+        .query_map([], map_to_pte)?
+        .filter_map(Result::ok)
+        .collect();
 
-    let day_history = res.filter_map(Result::ok).collect();
-
-    let mut stmt = conn.prepare(HOURLY_QUERY)?;
-    let res = stmt.query_map([], map_to_pte)?;
-
-    let hour_history = res.filter_map(Result::ok).collect();
+    let hour_history = conn
+        .prepare(HOURLY_QUERY)?
+        .query_map([], map_to_pte)?
+        .filter_map(Result::ok)
+        .collect();
 
     Ok((day_history, hour_history))
 }
