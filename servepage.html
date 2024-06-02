@@ -8,6 +8,13 @@
 		p {
 			font-size: 1.1em;
 		}
+		div.powerdiv {
+			float: left;
+			padding-right: 3em;
+			width: 300px;
+
+//			display: inline-block;
+		}
 
 		table.powertable {
 			font-size: 1.2em;
@@ -32,13 +39,43 @@
 	<h1>Power Production</h1>
 	<p class="current">Current power: <span id="currentpower"></span>W</p>
 	<p>As of: <span id="currenttime"></span></p>
-	<h2>History</h2>
-	<table id="powerhistory" class="powertable">
-	</table>
+	<div id="power_hourly" class="powerdiv">
 	<h2>Hourly History</h2>
 	<table id="hourhistory" class="powersmalltable">
 	</table>
+	</div>
+	<div id="power_daily" class="powerdiv">
+	<h2>History</h2>
+	<table id="powerhistory" class="powertable">
+	</table>
+	</div>
+	<div id="power_monthly" class="powerdiv">
+	<h2>Monthly</h2>
+	<table id="monthlyhistory" class="powertable">
+	</table>
+	</div>
 	<script>
+
+		function monthly_tally(day_history) {
+			// dh contains dh.time and dh.watt_hours
+			// dh.time is a string in the format YYYY-MM-DD
+			// We want to grab the month and year from the time and sum up the watt_hours for each month+year
+			// Return an object with the month+year as the key and the sum of watt_hours as the value
+
+			// Create an object to store the monthly totals
+			let monthly_totals = {};
+			// Loop through the day_history
+			for (const dh of day_history) {
+				const [year, month, day] = dh.time.split('-');
+				const month_year = `${year}-${month}`;
+				if (!monthly_totals[month_year]) {
+					monthly_totals[month_year] = 0;
+				}
+				monthly_totals[month_year] += dh.watt_hours;
+			}
+			return monthly_totals;
+		}
+
 		const r = fetch('power');
 		r.then(response => response.json()).then(data => {
 			document.getElementById("currentpower").innerHTML = data.current.power;
@@ -73,6 +110,13 @@
 				let today_data = data.hour_history.find(dh => dh.time === hours[i + 24]);
 				hour_history_table.innerHTML += `<tr><td>${i.toString().padStart(2, '0')}</td><td>${yesterday_data ? yesterday_data.watt_hours + ' Wh' : '-'}</td><td>${today_data ? today_data.watt_hours + ' Wh' : '-'}</td></tr>\n`;
 			}
+
+			let monthly_totals = monthly_tally(data.day_history);
+			let monthly_history_table = document.getElementById("monthlyhistory");
+			monthly_history_table.innerHTML += '<tr><th>Month</th><th>Watt Hours</th></tr>\n';
+			for (const month_year in monthly_totals) {
+				monthly_history_table.innerHTML += `<tr><td>${month_year}</td><td>${monthly_totals[month_year]} Wh</td></tr>\n`;
+			}	
 		});
 	</script>
 </body>
