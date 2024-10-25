@@ -54,6 +54,11 @@
 	<table id="monthlyhistory" class="powertable">
 	</table>
 	</div>
+	<div id="power_yearly" class="powerdiv">
+	<h2>Yearly</h2>
+	<table id="yearlyhistory" class="powertable">
+	</table>
+	</div>
 	<script>
 
 		function monthly_tally(day_history) {
@@ -74,6 +79,19 @@
 				monthly_totals[month_year] += dh.watt_hours;
 			}
 			return monthly_totals;
+		}
+
+		function yearly_tally(day_history) {
+			let yearly_totals = {};
+			// Loop through the day_history
+			for (const dh of day_history) {
+				const [year, month, day] = dh.time.split('-');
+				if (!yearly_totals[year]) {
+					yearly_totals[year] = 0;
+				}
+				yearly_totals[year] += dh.watt_hours;
+			}
+			return yearly_totals;
 		}
 
 		const r = fetch('power');
@@ -116,7 +134,13 @@
 			monthly_history_table.innerHTML += '<tr><th>Month</th><th>Watt Hours</th></tr>\n';
 			for (const month_year in monthly_totals) {
 				monthly_history_table.innerHTML += `<tr><td>${month_year}</td><td>${monthly_totals[month_year]} Wh</td></tr>\n`;
-			}	
+			}
+			let yearly_totals = yearly_tally(data.day_history);
+			let yearly_history_table = document.getElementById("yearlyhistory");
+			yearly_history_table.innerHTML += '<tr><th>Year</th><th>Watt Hours</th></tr>\n';
+			for (const year in yearly_totals) {
+				yearly_history_table.innerHTML += `<tr><td>${year}</td><td>${yearly_totals[year]} Wh</td></tr>\n`;
+			}
 		});
 	</script>
 </body>
