@@ -1,4 +1,4 @@
-use anyhow::{Result};
+use anyhow::Result;
 use axum::{error_handling::HandleError, http::StatusCode, Json, Router};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -30,8 +30,13 @@ pub async fn power() -> Result<Json<PowerResponse>> {
     }))
 }
 
+pub async fn current_power() -> Result<Json<RawPowerLogEntry>> {
+    let current = duckdb_current_power()?;
+    Ok(Json(current))
+}
+
 #[derive(Deserialize, Serialize, Debug)]
-struct RawPowerLogEntry {
+pub struct RawPowerLogEntry {
     power: u32,
     time: String,
 }
@@ -39,6 +44,25 @@ struct RawPowerLogEntry {
 struct PowerLogEntry {
     power: u32,
     time: DateTime<Utc>,
+}
+
+fn duckdb_current_power() -> duckdb::Result<RawPowerLogEntry> {
+    const DB: &str = "/home/dga/solar/solarpower.duckdb";
+    let readonly_config = duckdb::Config::default()
+        .access_mode(duckdb::AccessMode::ReadOnly)
+        .unwrap();
+    let conn = duckdb::Connection::open_with_flags(DB, readonly_config)?;
+
+    Ok(conn
+        .prepare("select power, strftime(time at time zone 'EST', '%Y-%m-%d %H:%M:%S') from (SELECT * from powerlog UNION ALL select * from solar_log_json) order by time desc limit 1")?
+        .query_map([], |row| {
+            Ok(RawPowerLogEntry {
+                power: row.get(0)?,
+                time: row.get(1)?,
+            })
+        })?
+        .last()
+        .ok_or(duckdb::Error::QueryReturnedNoRows)??)
 }
 
 fn duckdb_power() -> duckdb::Result<(RawPowerLogEntry, Vec<PowerTimeEntry>, Vec<PowerTimeEntry>)> {
@@ -89,12 +113,20 @@ async fn main() {
         let b = power().await?;
         Ok::<_, anyhow::Error>(b)
     });
+    let current_power_service = tower::service_fn(|_req| async {
+        let b = current_power().await?;
+        Ok::<_, anyhow::Error>(b)
+    });
 
     let app = Router::new()
         .route_service("/", ServeFile::new("servepage.html"))
         .route_service(
             "/power",
             HandleError::new(power_service, handle_anyhow_error),
+        )
+        .route_service(
+            "/current",
+            HandleError::new(current_power_service, handle_anyhow_error),
         );
 
     let listener = TcpListener::bind("0.0.0.0:8084").await.unwrap();
