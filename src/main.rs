@@ -72,8 +72,9 @@ fn duckdb_power() -> duckdb::Result<(RawPowerLogEntry, Vec<PowerTimeEntry>, Vec<
         .unwrap();
     let conn = duckdb::Connection::open_with_flags(DB, readonly_config)?;
 
+    let elapsed_start = std::time::Instant::now();
     let current_power = conn
-        .prepare("select power, strftime(time at time zone 'EST', '%Y-%m-%d %H:%M:%S') from (SELECT * from powerlog UNION ALL select * from solar_log_json) order by time desc limit 1")?
+        .prepare("select power, strftime(time at time zone 'EST', '%Y-%m-%d %H:%M:%S') from (SELECT * from (SELECT * from powerlog UNION ALL select * from solar_log_json) order by time desc limit 1)")?
         .query_map([], |row| {
             Ok(RawPowerLogEntry {
                 power: row.get(0)?,
@@ -89,12 +90,22 @@ fn duckdb_power() -> duckdb::Result<(RawPowerLogEntry, Vec<PowerTimeEntry>, Vec<
             watt_hours: row.get(1)?,
         })
     };
+    println!(
+        "current_power calc time: {}",
+        elapsed_start.elapsed().as_millis()
+    );
+    let elapsed_start = std::time::Instant::now();
 
     let day_history = conn
         .prepare(DAILY_QUERY)?
         .query_map([], map_to_pte)?
         .filter_map(Result::ok)
         .collect();
+    println!(
+        "day_history calc time: {}",
+        elapsed_start.elapsed().as_millis()
+    );
+    let elapsed_start = std::time::Instant::now();
 
     let hour_history = conn
         .prepare(HOURLY_QUERY)?
@@ -102,6 +113,10 @@ fn duckdb_power() -> duckdb::Result<(RawPowerLogEntry, Vec<PowerTimeEntry>, Vec<
         .filter_map(Result::ok)
         .collect();
 
+    println!(
+        "hour_history calc time: {}",
+        elapsed_start.elapsed().as_millis()
+    );
     Ok((current_power, day_history, hour_history))
 }
 
